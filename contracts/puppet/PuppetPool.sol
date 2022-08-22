@@ -46,6 +46,7 @@ contract PuppetPool is ReentrancyGuard {
         return amount * _computeOraclePrice() * 2 / 10 ** 18;
     }
 
+    // Division problem in solidity retruns Zero
     function _computeOraclePrice() private view returns (uint256) {
         // calculates the price of the token in wei according to Uniswap pair
         return uniswapPair.balance * (10 ** 18) / token.balanceOf(uniswapPair);

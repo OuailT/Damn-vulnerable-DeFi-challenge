@@ -62,7 +62,7 @@ describe('Compromised challenge', function () {
     it('Exploit', async function () {        
         /** In order to exploit this contact, I need first to connect the private keys,
          * with a wallets, then connect these wallets to oracles to manipulate the prices.
-         * This means that I'm going to the price of the NFT to the lowest price, then change the price
+         * This means that I'm going to change the price of the NFT to the lowest price, then change the price
          * to the total amout of the token the exchange has. then immediately I'm going to sell my NFT
          * that I bought for the balance of the contract to drains the contracts from the funds.
           */

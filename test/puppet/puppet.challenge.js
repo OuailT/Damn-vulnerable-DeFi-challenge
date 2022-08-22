@@ -28,9 +28,10 @@ describe('[Challenge] Puppet', function () {
 
         const UniswapExchangeFactory = new ethers.ContractFactory(exchangeJson.abi, exchangeJson.evm.bytecode, deployer);
         const UniswapFactoryFactory = new ethers.ContractFactory(factoryJson.abi, factoryJson.evm.bytecode, deployer);
-
+        
         const DamnValuableTokenFactory = await ethers.getContractFactory('DamnValuableToken', deployer);
         const PuppetPoolFactory = await ethers.getContractFactory('PuppetPool', deployer);
+        const PupperAttack = await ethers.getContractFactory('PuppetPool', attacker);
 
         await ethers.provider.send("hardhat_setBalance", [
             attacker.address,
@@ -60,7 +61,13 @@ describe('[Challenge] Puppet', function () {
             this.token.address,
             this.uniswapExchange.address
         );
-    
+
+        // Deploy the PupperAttack
+        this.puppetAttack = await PupperAttack.deploy(
+            this.token.address,
+            this.lendingPool.address,
+            this.uniswapExchange);
+
         // Add initial token and ETH liquidity to the pool
         await this.token.approve(
             this.uniswapExchange.address,
@@ -103,6 +110,10 @@ describe('[Challenge] Puppet', function () {
 
     it('Exploit', async function () {
         /** CODE YOUR EXPLOIT HERE */
+        /* 1- Before the attack I have to transfer tokens from the attacker acounts to 
+        the contract accounts */
+        await this.token.transfer(this.puppetAttack.address, ATTACKER_INITIAL_TOKEN_BALANCE);
+        this.puppetAttack.connect(attacker).attack(ethers.utils.parseEther("0.1"));
     });
 
     after(async function () {
