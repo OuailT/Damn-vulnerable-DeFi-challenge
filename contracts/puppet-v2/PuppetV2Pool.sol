@@ -37,7 +37,7 @@ contract PuppetV2Pool {
         _uniswapPair = uniswapPairAddress;
         _uniswapFactory = uniswapFactoryAddress;
     }
-
+    // 1 ~ 1 3 token khasno ndir deposit dial 3 ETH
     /**
      * @notice Allows borrowing `borrowAmount` of tokens by first depositing three times their value in WETH
      *         Sender must have approved enough WETH in advance.
